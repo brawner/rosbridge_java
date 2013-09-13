@@ -2,16 +2,19 @@ package edu.brown.robotics.rosbridge;
 
 import java.util.*;
 
+
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONObject.*;
+import org.json.JSONArray;
 import org.json.JSONArray.*;
 
-public class RosbridgeClient {
+public class RosbridgeClient implements MessageHandler {
 	private HashSet<UUID> ids;
 	private HashMap<UUID, MessageHandler> handlers;
 	private HashMap<UUID, String> publishedTopics;
 	private HashMap<UUID, String> subscribedTopics;
+	private HashMap<String, ArrayList<UUID>> subscriberLookup;
 	private HashMap<String, String> topicTypes;
 	
 	
@@ -22,7 +25,10 @@ public class RosbridgeClient {
 		this.ids = new HashSet<UUID>();
 		this.handlers = new HashMap<UUID, MessageHandler>();
 		this.publishedTopics = new HashMap<UUID, String>();
-		this.client = new JavaClient(url, port);
+		this.subscribedTopics = new HashMap<UUID, String>();
+		this.subscriberLookup = new HashMap<String, ArrayList<UUID>>();
+		this.topicTypes = new HashMap<String, String>();
+		this.client = new JavaClient(url, port, this);
 	}
 	
 	private UUID createUniqueID()
@@ -34,6 +40,38 @@ public class RosbridgeClient {
 		}
 		this.ids.add(id);
 		return id;
+	}
+	
+	public void messageReceived(String msg) throws JSONException
+	{
+		JSONObject obj = new JSONObject(msg);
+		ArrayList<UUID> ids = new ArrayList<UUID>();
+		if (obj.has("id"))
+		{
+			String idStr = obj.getString("id");
+			ids.add(UUID.fromString(idStr));
+		}
+		else
+		{
+			String subscriber = "";
+			if (obj.has("topic"))
+			{
+				subscriber = obj.getString("topic");
+			}
+			else if (obj.has("service"))
+			{
+				subscriber = obj.getString("service");
+			}
+			
+			if (subscriber != "")
+			{
+				ids.addAll(this.subscriberLookup.get(subscriber));
+			}
+		}
+		for(UUID id : ids)
+		{
+			this.handlers.get(id).messageReceived(msg);
+		}	
 	}
 	
 	public UUID Subscribe(String topic, MessageHandler handler)
@@ -49,6 +87,13 @@ public class RosbridgeClient {
 			System.err.println("Unable to create JSON object to subscribe to " + topic + ": " + e);
 		}
 		this.client.sendPacket(call);
+		this.subscribedTopics.put(id, topic);
+		this.handlers.put(id, handler);
+		if (!this.subscriberLookup.containsKey(topic))
+		{
+			this.subscriberLookup.put(topic, new ArrayList<UUID>());
+		}
+		this.subscriberLookup.get(topic).add(id);
 		return id;
 	}
 	
@@ -62,6 +107,19 @@ public class RosbridgeClient {
 		}
 		catch (JSONException e) {
 			System.err.println("Unable to create JSON object to unsubscribe: " + e);
+		}
+		if (this.handlers.containsKey(id))
+		{
+			this.handlers.remove(id);
+		}
+		if (this.subscribedTopics.containsKey(id))
+		{
+			String topic = this.subscribedTopics.get(id);
+			this.subscribedTopics.remove(id);
+			if (this.subscriberLookup.containsKey(topic))
+			{
+				this.subscriberLookup.get(topic).remove(id);
+			}
 		}
 		this.client.sendPacket(call);
 	}
@@ -80,6 +138,8 @@ public class RosbridgeClient {
 			System.err.println("Unable to create JSON object to advertise topic " + 
 					topic + ": " + e);
 		}
+		this.publishedTopics.put(id,  topic);
+		this.topicTypes.put(topic, type);
 		this.client.sendPacket(call);
 		return id;
 	}
@@ -94,6 +154,10 @@ public class RosbridgeClient {
 		}
 		catch (JSONException e) {
 			System.err.println("Unable to create JSON object to unadvertise: " + e);
+		}
+		if (this.publishedTopics.containsKey(id))
+		{
+			this.publishedTopics.remove(id);
 		}
 		this.client.sendPacket(call);
 	}

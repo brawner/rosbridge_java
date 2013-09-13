@@ -19,12 +19,14 @@ public class JavaClient implements WebSocketClientListener {
 	private BaseTokenClient client;
 	private String socketAddress;
 	private Boolean open;
+	private MessageHandler packetHandler;
 	
-	public JavaClient(String url, short port)
+	public JavaClient(String url, short port, MessageHandler handler)
 	{
 		this.client = new BaseTokenClient();
         this.client.addListener(this);       
         this.Open(url, port);
+        this.packetHandler = handler;
 	}
 	
 	public void Open()
@@ -83,6 +85,7 @@ public class JavaClient implements WebSocketClientListener {
 	public void processPacket(WebSocketClientEvent e, WebSocketPacket packet) {
 		try {
 			String s = packet.getString("data");
+			this.packetHandler.messageReceived(s);
 		} catch (UnsupportedEncodingException e1) {
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
