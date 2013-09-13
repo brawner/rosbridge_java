@@ -10,6 +10,26 @@ import org.json.JSONArray;
 import org.json.JSONArray.*;
 
 public class RosbridgeClient implements MessageHandler {
+        public static void main(String [] args)
+        {
+                RosbridgeClient client = new RosbridgeClient("192.168.160.134", 9090);
+                client.StatusMessage("Connecting to rosbridge server", "info");
+                UUID subscribeID = client.Subscribe("something", client.PrintMessage);
+
+                UUID publishID = client.Advertise("something", "String");
+                for (int i = 0; i < 10; i++)
+                {
+                    client.Publish(publishID, i.ToString());
+                }
+
+                Thread.sleep(1000);
+                client.Unsubscribe(subscribeID);
+                client.Unadvertise(publishID);
+
+        }
+
+
+
 	private HashSet<UUID> ids;
 	private HashMap<UUID, MessageHandler> handlers;
 	private HashMap<UUID, String> publishedTopics;
@@ -223,4 +243,9 @@ public class RosbridgeClient implements MessageHandler {
 		}
 		this.client.sendPacket(call);
 	}
+
+        public void PrintMessage(String s)
+        {
+                System.out.println(s);
+        }
 }
