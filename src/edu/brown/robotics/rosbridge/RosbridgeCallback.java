@@ -1,8 +1,8 @@
 package edu.brown.robotics.rosbridge;
 
-import org.json.JSONException;
+import org.json.simple.*;
 
 interface MessageHandler {
-	void messageReceived(String msg) throws JSONException;
+	void messageReceived(String msg);
 
 }

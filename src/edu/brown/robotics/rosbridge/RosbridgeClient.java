@@ -11,11 +11,13 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.*;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-import org.json.JSONObject.*;
-import org.json.JSONArray;
-import org.json.JSONArray.*;
+import org.json.simple.*;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
+//import org.json.JSONObject;
+//import org.json.JSONObject.*;
+//import org.json.JSONArray;
+//import org.json.JSONArray.*;
 import org.java_websocket.client.WebSocketClient;
 
 /**
@@ -46,12 +48,9 @@ public class RosbridgeClient implements MessageHandler {
 
         UUID publishID = client.Advertise("something", "std_msgs/String");
         for (int i = 0; i < 10; i++) {
-            try {
-				client.Publish(publishID, new JSONObject("{'data': '" + i + "'}"));
-			} catch (JSONException e) {
-				System.err.println("Failed to stringify number " + i);
-				e.printStackTrace();	
-			}
+        	JSONObject obj = new JSONObject();
+        	obj.put("data", Integer.toString(i));
+            client.Publish(publishID,  obj);
         }
 
         try {
@@ -122,6 +121,7 @@ public class RosbridgeClient implements MessageHandler {
 			System.err.println("URI improperly formed. URL: " + url + " port: " + port);
 			e.printStackTrace();
 		}
+		this.client.connect();
 	}
 	
 	/**
@@ -146,20 +146,28 @@ public class RosbridgeClient implements MessageHandler {
 	 * @param msg The received message as a string
 	 * @throws JSONException Thrown if JSON parsing fails
 	 */
-	public void messageReceived(String msg) throws JSONException {
-		JSONObject obj = new JSONObject(msg);
+	public void messageReceived(String msg){
+		JSONParser parser = new JSONParser();
+		JSONObject obj;
+		try {
+			obj = (JSONObject)parser.parse(msg);
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return;
+		}
 		ArrayList<UUID> ids = new ArrayList<UUID>();
-		if (obj.has("id")) {
-			String idStr = obj.getString("id");
+		if (obj.containsKey("id")) {
+			String idStr = obj.get("id").toString();
 			ids.add(UUID.fromString(idStr));
 		}
 		else {
 			String subscriber = "";
-			if (obj.has("topic")) {
-				subscriber = obj.getString("topic");
+			if (obj.containsKey("topic")) {
+				subscriber = obj.get("topic").toString();
 			}
-			else if (obj.has("service")) {
-				subscriber = obj.getString("service");
+			else if (obj.containsKey("service")) {
+				subscriber = obj.get("service").toString();
 			}
 			
 			if (subscriber != "") {
@@ -182,16 +190,11 @@ public class RosbridgeClient implements MessageHandler {
 		UUID id = this.createUniqueID();
 		JSONObject call = new JSONObject();
 
-		try {
-			call.put("op", "subscribe");
-			call.put("id", id.toString());
-			call.put("topic", topic);
-			if (type != null || type != "") {
-				call.put("type", type);
-			}
-		}
-		catch (JSONException e) {
-			System.err.println("Unable to create JSON object to subscribe to " + topic + ": " + e);
+		call.put("op", "subscribe");
+		call.put("id", id.toString());
+		call.put("topic", topic);
+		if (type != null || type != "") {
+			call.put("type", type);
 		}
 
 		this.client.send(call);
@@ -213,14 +216,9 @@ public class RosbridgeClient implements MessageHandler {
 	public void Unsubscribe(UUID id)
 	{
 		JSONObject call = new JSONObject();
-		try {
-			call.put("op", "unsubscribe");
-			call.put("id", id.toString());
-			call.put("topic", this.subscribedTopics.get(id));
-		}
-		catch (JSONException e) {
-			System.err.println("Unable to create JSON object to unsubscribe: " + e);
-		}
+		call.put("op", "unsubscribe");
+		call.put("id", id.toString());
+		call.put("topic", this.subscribedTopics.get(id));
 		if (this.handlers.containsKey(id)) {
 			this.handlers.remove(id);
 		}
@@ -244,16 +242,11 @@ public class RosbridgeClient implements MessageHandler {
 	public UUID Advertise(String topic, String type) {
 		UUID id = this.createUniqueID();
 		JSONObject call = new JSONObject();
-		try {
-			call.put("op", "advertise");
-			call.put("topic", topic);
-			call.put("type", type);
-			call.put("id", id.toString());
-		}
-		catch (JSONException e) {
-			System.err.println("Unable to create JSON object to advertise topic " + 
-					topic + ": " + e);
-		}
+		call.put("op", "advertise");
+		call.put("topic", topic);
+		call.put("type", type);
+		call.put("id", id.toString());
+
 		this.publishedTopics.put(id,  topic);
 		this.topicTypes.put(topic, type);
 		this.client.send(call.toString());
@@ -267,14 +260,10 @@ public class RosbridgeClient implements MessageHandler {
 	public void Unadvertise(UUID id) {
 		JSONObject call = new JSONObject();
 
-		try {
-			call.put("op", "unadvertise");
-			call.put("id", id.toString());
-			call.put("topic", this.publishedTopics.get(id));
-		}
-		catch (JSONException e) {
-			System.err.println("Unable to create JSON object to unadvertise: " + e);
-		}
+		call.put("op", "unadvertise");
+		call.put("id", id.toString());
+		call.put("topic", this.publishedTopics.get(id));
+
 		if (this.publishedTopics.containsKey(id)) {
 			this.publishedTopics.remove(id);
 		}
@@ -290,15 +279,10 @@ public class RosbridgeClient implements MessageHandler {
 	public void Publish(UUID id, JSONObject obj)
 	{
 		JSONObject call = new JSONObject();
-		try {
-			call.put("op", "publish");
-			call.put("topic", this.publishedTopics.get(id));
-			call.put("msg", obj);
-		}
-		catch (JSONException e) {
-			System.err.println("Unable to create JSON object to publish message " + 
-					obj.toString() + ": " + e);
-		}
+		call.put("op", "publish");
+		call.put("topic", this.publishedTopics.get(id));
+		call.put("msg", obj);
+
 		this.client.send(call.toString());
 	}
 	
@@ -312,17 +296,12 @@ public class RosbridgeClient implements MessageHandler {
 	public void CallService(String service, String[] args, MessageHandler handler)
 	{
 		JSONObject call = new JSONObject();
-		try {
-			call.put("op", "call_service");
-			call.put("service", service);
-			if (args != null && args.length > 0) {
-				call.put("args", args);
-			}
+		call.put("op", "call_service");
+		call.put("service", service);
+		if (args != null && args.length > 0) {
+			call.put("args", args);
 		}
-		catch (JSONException e) {
-			System.err.println("Unable to create JSON object to call service " + 
-					service + ": " + e);
-		}
+	
 		this.client.send(call.toString());
 	}
 	
@@ -333,15 +312,10 @@ public class RosbridgeClient implements MessageHandler {
 	 */
 	public void ServiceResponse(UUID id, JSONArray values) {
 		JSONObject call = new JSONObject();
-		try {
-			call.put("op", "service_response");
-			call.put("id", id.toString());
-			call.put("service", this.publishedTopics.get(id));
-			call.put("values", values);
-		}
-		catch (JSONException e) {
-			System.err.println("Unable to create JSON object to send service response: " + e);
-		}
+		call.put("op", "service_response");
+		call.put("id", id.toString());
+		call.put("service", this.publishedTopics.get(id));
+		call.put("values", values);
 		this.client.send(call.toString());
 	}
 	
@@ -353,14 +327,9 @@ public class RosbridgeClient implements MessageHandler {
 	public void StatusMessage(String message, String level)
 	{
 		JSONObject call = new JSONObject();
-		try {
-			call.put("op", "status");
-			call.put("level", level);
-			call.put("msg", message);
-		}
-		catch (JSONException e) {
-			System.err.println("Unable to create JSON object to send status message: " + e);
-		}
+		call.put("op", "status");
+		call.put("level", level);
+		call.put("msg", message);
 		this.client.send(call.toString());
 	}
 }
